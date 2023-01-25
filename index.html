@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@5.x/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.8.2/dist/tf.min.js"></script>
+    <script src="d3.js"></script>
+    <script src="matrix.js"></script>
+    <script src="zip.js"></script>
+    <style type="text/css">
+      .drop-zone{
+        height: 130px;
+        border: dashed 4px #999;
+        border-radius: 20px;
+      }
+      .drop-area {
+        display: flex;
+        flex-direction: column;
+      }
+      .upload-images-area{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 10px;
+        border: dashed 4px #888;
+        border-radius: 25px;
+      }
+      .dataset-select-area{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 10px;
+        border: solid 4px #888;
+        border-radius: 25px; 
+      }
+      .full-width{
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <v-app>
+        <v-container style="width: 780px;">
+          <v-row class="d-flex align-center justify-center">
+            <v-col class="d-flex align-center justify-center" cols="12">
+              <h2>KidBright AI Accuracy Tester</h2>
+            </v-col>
+            
+            <v-col class="d-flex align-center justify-center drop-zone dropable" cols="12" @dragover.prevent="onDragOver" @dragleave.prevent="onDragLeave" @drop="onDrop">
+              <div class="drop-area">
+                <v-icon large v-if="!file">mdi-folder-zip</v-icon>
+                <span>ลากโปรเจค Zip ไฟล์มาที่นี่</span>
+              </div>
+            </v-col>
+
+            <v-col v-if="project" cols="12">
+              <v-simple-table>
+                <template v-slot:default>
+                <thead>
+                  <tr style="background-color: #ccc;">
+                    <th class="text-left">Name</th>
+                    <th class="text-left">Data</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item of projectDisplay">
+                    <td>{{item.title}}</td>
+                    <td v-if="item.key == 'tfjs'">{{project[item.key] ? 'True' : 'False'}}</td>
+                    <td v-else-if="item.key == 'modelLabel'">{{labels.join(", ")}}</td>
+                    <td v-else>{{project[item.key]}}</td>
+                  </tr>
+                </tbody>
+              </template>
+              </v-simple-table>
+            </v-col>
+
+            <v-col v-if="project && project['tfjs'] && project['type'] != 'OBJECT_DETECTION'" cols="12">
+              <h3 class="mb-3">เลือกฐานข้อมูล</h3>
+              <v-item-group v-model="datasetSource">
+                <v-row>
+                  <v-col cols="12" md="6">
+                    <v-item v-slot="{ active, toggle }">
+                      <div class="dataset-select-area" >
+                        <div class="full-width d-flex align-center justify-space-between">
+                          <h4 class="ml-3">รูปภาพในโปรเจค</h4>
+                          <v-btn icon @click="toggle">
+                            <v-icon large> {{ active ? 'mdi-check-circle-outline' : 'mdi-checkbox-blank-circle-outline' }}</v-icon>
+                          </v-btn>
+                        </div>
+                        <div class="d-flex align-center flex-column"> 
+                          <span>จำนวน Dataset {{dataset.data.length}} รูป</span>
+                          <v-row class="py-2" class="align-center"> 
+                            <v-col v-for="src in sampleImages" cols="4" sm="4" class="pa-1">
+                              <v-img :src="src" max-height="105" max-width="105"></v-img>
+                            </v-col>
+                          </v-row>
+                        </div>
+                      </div>
+                    </v-item>
+                  </v-col>
+                  
+                  <!-- <v-col cols="12" md="6">
+                    <v-item v-slot="{ active, toggle }" style="">
+                      <div class="upload-images-area dropable" @dragover.prevent="onDragOver" @dragleave.prevent="onDragLeave" @drop="onDatasetDrop">
+                        <div v-if="uploadedFolder.length <= 0" class="full-width">
+                          <div class="full-width d-flex align-center justify-space-between">
+                            <h4 class="ml-3">อัพโหลดรูปภาพ (ลาก Folder มาที่นี่)</h4>
+                            <v-btn icon @click="toggle">
+                              <v-icon large> {{ active ? 'mdi-check-circle-outline' : 'mdi-checkbox-blank-circle-outline' }}</v-icon>
+                            </v-btn>
+                          </div>
+                          <v-img class="mt-2 mb-1" src="images/import_note2.png" @click="toggle"></v-img>
+                        </div>
+
+                        <div v-else class="d-flex align-center flex-column">
+                          <span>จำนวน Dataset {{dataset.data.length}} รูป</span>
+                        </div>
+                      </div>
+                    </v-item>
+                  </v-col> -->
+
+                </v-row>
+              </v-item-group>
+            </v-col>
+
+            <!-- <v-col v-if="datasetSource !== null && datasetSource !== undefined" cols="12">
+              <h3>Cross Validation</h3>
+              <v-item-group v-model="datasetSource">
+                <v-row>
+                  <v-col cols="12" md="6">
+                    <v-item v-slot="{ active, toggle }">
+                      <v-img
+                        :src="`https://cdn.vuetifyjs.com/images/backgrounds/md.jpg`"
+                        height="150"
+                        class="text-right pa-2"
+                        @click="toggle"
+                      >
+                        <v-btn icon dark>
+                          <v-icon large> {{ active ? 'mdi-check-circle-outline' : 'checkbox-blank-circle-outline' }}</v-icon>
+                        </v-btn>
+                      </v-img>
+                    </v-item>
+                  </v-col>
+                  <v-col cols="12" md="6">
+                    <v-item v-slot="{ active, toggle }">
+                      <v-img
+                        :src="`https://cdn.vuetifyjs.com/images/backgrounds/bg.jpg`"
+                        height="150"
+                        class="text-right pa-2"
+                        @click="toggle"
+                      >
+                        <v-btn icon dark>
+                          <v-icon large> {{ active ? 'mdi-check-circle-outline' : 'checkbox-blank-circle-outline' }}</v-icon>
+                        </v-btn>
+                      </v-img>
+                    </v-item>
+                  </v-col>
+                </v-row>
+              </v-item-group>
+            </v-col> -->
+
+            <v-col v-if="(datasetSource === 0) || (datasetSource === 1 && uploadedFolder.length > 0) " cols="12" class="d-flex align-center justify-center flex-column">
+              <v-btn x-large color="primary" dark @click="startTest">
+                START TEST
+              </v-btn>
+              <v-progress-linear
+                v-if="testing"
+                class="mt-3"
+                :value="testingAt"
+                color="primary"
+                height="25"
+              >
+                <template v-slot:default="{ value }">
+                  <span class="mr-2">TESTING</span> <span>{{progress}}</span>
+                </template>
+              </v-progress-linear>
+
+              <div id="container"></div>
+
+              <v-col v-if="tested" cols="12">
+                <v-simple-table>
+                  <template v-slot:default>
+                    <thead>
+                      <tr style="background-color: #ccc;">
+                        <th class="text-left">Matric</th>
+                        <th class="text-left">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr><td>Test</td><td>{{datasetFiles.length}}</td></tr>
+                      <tr><td>Corrected</td><td>{{matric.corrected}}</td></tr>
+                      <tr><td>Failed</td><td>{{matric.failed}}</td></tr>
+                      <tr><td>Accuracy</td><td>{{matric.accuracy}}%</td></tr>
+                      <tr><td>Precision</td><td>{{matric.precision}}%</td></tr>
+                      <tr><td>Recall</td><td>{{matric.recall}}%</td></tr>
+                      <tr><td>F1-Score</td><td>{{matric.f1Score}}</td></tr>
+                    </tbody>
+                  </template>
+                </v-simple-table>
+              </v-col>
+
+            </v-col>
+          </v-row>
+        </v-container>
+      </v-app>
+    </div>
+    <script>
+      new Vue({
+        el: '#app',
+        vuetify: new Vuetify(),
+        data() {
+          return {
+            dropActive: false,
+            file: null,
+            project: null,
+            dataset: null,
+            model: null,
+            modelJson : null,
+            modelBin : null,
+            labels: [],
+            datasetFiles : [],
+            sampleImages: [],
+            zip : null,
+            reader: null,
+            projectDisplay : [
+              {title:"Project ID", key: "id"}, 
+              {title:"Project Name", key: "name"}, 
+              {title:"Type", key: "projectTypeTitle"},
+              {title:"Trained", key: "tfjs"},
+              {title:"Labels", key: "modelLabel"}
+            ],
+            datasetSource : null,
+            uploadedFolder : [],
+            testing: false,
+            tested: false,
+            progress: "",
+            testingAt: 0,
+            matric : {
+              corrected: 0,
+              failed : 0,
+              accuracy: 0,
+              precision : 0,
+              recall: 0,
+              f1Score: 0
+            }
+            // splitInfo : [
+            //   {title: "All", fold: 1, split : 0},
+            //   {title: "2-Fold (50%)", fold: 2, split : 50},
+            //   {title: "4-Fold (25%)", fold: 4, split : 50},
+            //   {title: "5-Fold (20%)", fold: 5, split : 50},
+            //   {title: "10-Fold (10%)", fold: 10, split : 50},
+            // ],
+            // split : null,
+          };
+        },
+        watch: {
+          datasetSource: function(val){
+            console.log(val);
+          }
+        },
+        methods: {
+          getImage(entry){
+            return new Promise(async (resolve, reject) => {
+              let image = new Image();
+              image.onload = function() {
+                  resolve(image);
+              }
+              image.onerror = function() {
+                  reject(new Error("Failed to load image"));
+              }
+              let blob = await this.getFileBlob(entry);
+              let url = URL.createObjectURL(blob);
+              image.src = url;
+            });
+          },
+          concatenateArrayBuffers(buffers) {
+            if (buffers.length === 1) {
+              return buffers[0].buffer;
+            }
+            var totalByteLength = 0;
+            buffers.forEach(function (buffer) {
+              totalByteLength += buffer.byteLength;
+            });
+            var temp = new Uint8Array(totalByteLength);
+            var offset = 0;
+            buffers.forEach(function (buffer) {
+              temp.set(new Uint8Array(buffer), offset);
+              offset += buffer.byteLength;
+            });
+            return temp.buffer;
+          },
+          async startTest(){
+            this.testing = true;
+            this.tested = false;
+            //--------- loading model -----------//
+            let modelJson = JSON.parse( await this.getFileText(this.modelJson));
+            let weights = [];
+            for (let binFile of modelJson.weightsManifest[0].paths) {
+              let weightFile = this.modelBin.find(el=>el.filename.endsWith(binFile));
+              let buff = await this.getFileUint8(weightFile);
+              weights.push(buff);
+            }
+            let weightData = this.concatenateArrayBuffers(weights);
+            let model = await tf.loadLayersModel(
+              tf.io.fromMemory(
+                modelJson.modelTopology,
+                modelJson.weightsManifest[0].weights,
+                weightData
+              )
+            );
+            let inputShape = model.layers[0].inputSpec[0].shape;
+            //---------- preloading -------------//
+            const zeroTensor = tf.zeros([1, inputShape[1], inputShape[2], 3], 'int32');
+            const result = await model.predict(zeroTensor);
+            const res = await result.data();
+            result.dispose();
+            zeroTensor.dispose();
+            //-----------------------------------//
+            const classify = async function(img){
+              const batched = tf.tidy(()=>{
+                img = tf.browser.fromPixels(img);
+                const normalized = tf.add(tf.mul(tf.cast(img, 'float32'), (2 / 255.0)), -1); //min -1 to max 1
+                let resized = tf.image.resizeBilinear(normalized, [inputShape[1], inputShape[2]], true); //alignCorners = true;
+                const batched = tf.reshape(resized, [-1, inputShape[1], inputShape[2], 3]); //return tf.expandDims(img);
+                return batched;
+              });
+              let res = await model.predict(batched);
+              let maxIndex = res.argMax(1).dataSync()[0];
+              return [maxIndex, res];
+            }
+            //------------------------------------//
+            let predicted = [];
+            let expected = [];
+            let corrected = 0;
+            let failed = 0;
+            this.progress = `0/${this.datasetFiles.length}`;
+            this.testingAt = 0;
+            let progress = 0;
+            for(let el of this.datasetFiles){
+              let fileId = null;
+              if(this.project.projectType == "IMAGE_CLASSIFICATION"){
+                fileId = (el.filename.split("/")[1]).split(".")[0];
+              }else if(this.project.projectType == "VOICE_CLASSIFICATION"){
+                fileId = ((el.filename.split("/")[1]).split(".")[0]).split("_")[0];
+              }
+              let img = await this.getImage(el);
+              let [output,logist] = await classify(img);
+              let expect = this.dataset.data.find(lt=>lt.id == fileId);
+              let expectIndex = this.labels.indexOf(expect.class);
+              predicted.push(output);
+              expected.push(expectIndex);
+              if(expectIndex == output){
+                corrected++;
+              }else{
+                failed++;
+              }
+              this.progress = `${progress}/${this.datasetFiles.length}`;
+              progress++;
+              this.testingAt = progress / this.datasetFiles.length * 100;
+            }
+            //----------- display confusion matrix ------------//
+            const lab = tf.tensor1d(expected,'int32');
+            const pred = tf.tensor1d(predicted,'int32');
+            const confMatrix = tf.math.confusionMatrix(lab, pred, this.labels.length).arraySync();
+            Matrix({
+              container : '#container',
+              data      : confMatrix,
+              labels    : this.labels
+            });
+            const oneHotLabel = tf.oneHot(tf.tensor1d(expected, 'int32'), this.labels.length);
+            const oneHotPred = tf.oneHot(tf.tensor1d(predicted, 'int32'), this.labels.length);
+
+            const precision = tf.metrics.precision(oneHotLabel, oneHotPred).arraySync();
+            const recall = tf.metrics.recall(oneHotLabel, oneHotPred).arraySync();
+            this.matric.f1Score = (2 * ((precision * recall) / (precision + recall))).toFixed(2);
+            this.matric.precision = (precision * 100).toFixed(2);
+            this.matric.recall = (recall * 100).toFixed(2);
+            this.matric.accuracy = (corrected / (corrected + failed) * 100).toFixed(2) ;
+            this.matric.corrected = corrected;
+            this.matric.failed = failed;
+
+            setTimeout(()=>{
+              window.scrollTo(0, document.body.scrollHeight);  
+            }, 500);
+            //-------------------------------------------------//
+            this.testing = false;
+            this.tested = true;
+
+          },
+          async onDrop(e) {
+            e.preventDefault();
+            let target = this.findDropableParent(e.target);
+            target.style.border = "dashed 4px #999";
+            let files = e.dataTransfer.files;
+            if (files.length) {
+              let file = files[0];
+              this.reader = new zip.BlobReader(file);
+              this.zip = new zip.ZipReader(this.reader);
+              // let reader = new FileReader();
+              // reader.onload = (e) => {
+              //   this.file = e.target.result;
+              // };
+              // reader.readAsDataURL(file);
+              await this.readProjectInfo();
+            }
+            this.dropActive = false;
+          },
+          async onDatasetDrop(e){
+            e.preventDefault();
+            let target = this.findDropableParent(e.target);
+            target.style.border = "dashed 4px #999";
+            
+            let files = e.dataTransfer.files;
+            let folders = files.filter(el=>el.isDirectory);
+            console.log(folers);
+          },
+          findDropableParent(e){
+            if(e.classList.contains("dropable")){
+              return e;
+            }else{
+              return this.findDropableParent(e.parentElement);
+            }
+          },
+          onDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            let target = this.findDropableParent(e.target);
+            target.style.border = "dashed 6px red";
+          },
+          onDragLeave(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            let target = this.findDropableParent(e.target);
+            target.style.border = "dashed 4px #999";
+          },
+          async getFileText(entry){
+            let writer = new zip.TextWriter();
+            return await entry.getData(writer, {});
+          },
+          async getFileBlob(entry){
+            let writer = new zip.BlobWriter();
+            return await entry.getData(writer, {});
+          },
+          async getFileUint8(entry){
+            let writer = new zip.Uint8ArrayWriter();
+            return await entry.getData(writer, {});
+          },
+          async readProjectInfo(){
+            let entries = await this.zip.getEntries({ filenameEncoding: 'utf-8'});
+            if (entries && entries.length) {
+              let projectEntry = entries.find(el=>el.filename == "project.json");
+              if(!projectEntry){
+                return;
+              }
+              let projectData = await this.getFileText(projectEntry);
+              let projectJson = JSON.parse(projectData);
+              this.modelJson = entries.find(el=>el.filename.endsWith("model.json"));
+              this.modelBin = entries.filter(el=>el.filename.endsWith(".bin"));
+              this.project = Object.assign({}, projectJson.project.project);
+              this.dataset = Object.assign({}, projectJson.dataset.dataset);
+              if(this.project.projectType == "IMAGE_CLASSIFICATION"){
+                this.datasetFiles = entries.filter(el=>el.filename.startsWith("raw_dataset/") 
+                  && (el.filename.endsWith(".jpg") || el.filename.endsWith(".png")));
+              }else if(this.project.projectType == "VOICE_CLASSIFICATION"){
+                this.datasetFiles = entries.filter(el=>el.filename.endsWith("_mfcc.jpg"));
+              }
+              let samplesImages = [];
+              let samplesImageEntry = this.datasetFiles.slice(0, 6);
+              for(let el of samplesImageEntry){
+                let blob = await this.getFileBlob(el);
+                let blobUrl = URL.createObjectURL(blob);
+                samplesImages.push(blobUrl);
+              }
+              this.sampleImages = samplesImages;
+              //---------- label file ------------//
+              let labelFile = entries.find(el=>el.filename.endsWith("labels.txt"));
+              if(labelFile){
+                let labelsText = await this.getFileText(labelFile);
+                this.labels = labelsText.replace(/\r/g,'').split("\n").map(str=>str.trim()).filter(Boolean);
+              }else{
+                this.labels = this.project.modelLabel;
+                this.labels = this.labels.map(str=>str.replace(/\r/g,'').trim()).filter(Boolean);
+              }
+              console.log("Label : ", this.labels);
+              //----------------------------------//
+            }
+          }
+        },
+      });
+    </script>
+  </body>
+</html>
