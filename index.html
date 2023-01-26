@@ -186,6 +186,31 @@
                   <template v-slot:default>
                     <thead>
                       <tr style="background-color: #ccc;">
+                        <th class="text-left">Class</th>
+                        <th class="text-left">n(truth)</th>
+                        <th class="text-left">n(classified)</th>
+                        <th class="text-left">Precision</th>
+                        <th class="text-left">Recall</th>
+                        <th class="text-left">F1-Score</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(v,i) in labels">
+                        <td>{{v}}</td>
+                        <td>{{matric.nTruth[i]}}</td>
+                        <td>{{matric.nClassified[i]}}</td>
+                        <td>{{(matric.precision[i] * 100).toFixed(2)}}%</td>
+                        <td>{{(matric.recall[i] * 100).toFixed(2)}}%</td>
+                        <td>{{matric.f1Score[i].toFixed(3)}}</td>
+                      </tr>
+                    </tbody>
+                  </template>
+                </v-simple-table>
+
+                <v-simple-table class="mt-5">
+                  <template v-slot:default>
+                    <thead>
+                      <tr style="background-color: #ccc;">
                         <th class="text-left">Matric</th>
                         <th class="text-left">Value</th>
                       </tr>
@@ -194,10 +219,7 @@
                       <tr><td>Test</td><td>{{datasetFiles.length}}</td></tr>
                       <tr><td>Corrected</td><td>{{matric.corrected}}</td></tr>
                       <tr><td>Failed</td><td>{{matric.failed}}</td></tr>
-                      <tr><td>Accuracy</td><td>{{matric.accuracy}}%</td></tr>
-                      <tr><td>Precision</td><td>{{matric.precision}}%</td></tr>
-                      <tr><td>Recall</td><td>{{matric.recall}}%</td></tr>
-                      <tr><td>F1-Score</td><td>{{matric.f1Score}}</td></tr>
+                      <tr><td>Overall Accuracy</td><td>{{matric.accuracy}}%</td></tr>
                     </tbody>
                   </template>
                 </v-simple-table>
@@ -243,9 +265,11 @@
               corrected: 0,
               failed : 0,
               accuracy: 0,
-              precision : 0,
-              recall: 0,
-              f1Score: 0
+              nTruth:[],
+              nClassified : [],
+              precision : [],
+              recall: [],
+              f1Score: []
             }
             // splitInfo : [
             //   {title: "All", fold: 1, split : 0},
@@ -365,20 +389,27 @@
             //----------- display confusion matrix ------------//
             const lab = tf.tensor1d(expected,'int32');
             const pred = tf.tensor1d(predicted,'int32');
-            const confMatrix = tf.math.confusionMatrix(lab, pred, this.labels.length).arraySync();
+            
+            const confMatrix = tf.math.confusionMatrix(lab, pred, this.labels.length);
+            const tp = tf.mul(confMatrix, tf.diag(tf.ones([this.labels.length]))).sum(0);
+            
+            let nTruth = confMatrix.sum(1);
+            let nClassified = confMatrix.sum(0);
+
+            let precisions = tf.div(tp, confMatrix.sum(0));
+            let recalls = tf.div(tp, confMatrix.sum(1));
+            
+            let f1s =  tf.mul(2, tf.div(tf.mul(precisions, recalls), tf.add(precisions, recalls)))
             Matrix({
               container : '#container',
-              data      : confMatrix,
+              data      : confMatrix.arraySync(),
               labels    : this.labels
             });
-            const oneHotLabel = tf.oneHot(tf.tensor1d(expected, 'int32'), this.labels.length);
-            const oneHotPred = tf.oneHot(tf.tensor1d(predicted, 'int32'), this.labels.length);
-
-            const precision = tf.metrics.precision(oneHotLabel, oneHotPred).arraySync();
-            const recall = tf.metrics.recall(oneHotLabel, oneHotPred).arraySync();
-            this.matric.f1Score = (2 * ((precision * recall) / (precision + recall))).toFixed(2);
-            this.matric.precision = (precision * 100).toFixed(2);
-            this.matric.recall = (recall * 100).toFixed(2);
+            this.matric.nTruth = nTruth.arraySync();
+            this.matric.nClassified = nClassified.arraySync();
+            this.matric.f1Score = f1s.arraySync();
+            this.matric.precision = precisions.arraySync();
+            this.matric.recall = recalls.arraySync();
             this.matric.accuracy = (corrected / (corrected + failed) * 100).toFixed(2) ;
             this.matric.corrected = corrected;
             this.matric.failed = failed;
