@@ -93,7 +93,7 @@
                         </div>
                         <div class="d-flex align-center flex-column"> 
                           <span>จำนวน Dataset {{dataset.data.length}} รูป</span>
-                          <v-row class="py-2" class="align-center"> 
+                          <v-row class="py-2 align-center"> 
                             <v-col v-for="src in sampleImages" cols="4" sm="4" class="pa-1">
                               <v-img :src="src" max-height="105" max-width="105"></v-img>
                             </v-col>
@@ -126,42 +126,6 @@
                 </v-row>
               </v-item-group>
             </v-col>
-
-            <!-- <v-col v-if="datasetSource !== null && datasetSource !== undefined" cols="12">
-              <h3>Cross Validation</h3>
-              <v-item-group v-model="datasetSource">
-                <v-row>
-                  <v-col cols="12" md="6">
-                    <v-item v-slot="{ active, toggle }">
-                      <v-img
-                        :src="`https://cdn.vuetifyjs.com/images/backgrounds/md.jpg`"
-                        height="150"
-                        class="text-right pa-2"
-                        @click="toggle"
-                      >
-                        <v-btn icon dark>
-                          <v-icon large> {{ active ? 'mdi-check-circle-outline' : 'checkbox-blank-circle-outline' }}</v-icon>
-                        </v-btn>
-                      </v-img>
-                    </v-item>
-                  </v-col>
-                  <v-col cols="12" md="6">
-                    <v-item v-slot="{ active, toggle }">
-                      <v-img
-                        :src="`https://cdn.vuetifyjs.com/images/backgrounds/bg.jpg`"
-                        height="150"
-                        class="text-right pa-2"
-                        @click="toggle"
-                      >
-                        <v-btn icon dark>
-                          <v-icon large> {{ active ? 'mdi-check-circle-outline' : 'checkbox-blank-circle-outline' }}</v-icon>
-                        </v-btn>
-                      </v-img>
-                    </v-item>
-                  </v-col>
-                </v-row>
-              </v-item-group>
-            </v-col> -->
 
             <v-col v-if="(datasetSource === 0 && datasetFiles.length) || (datasetSource === 1 && uploadedFolder.length > 0) " cols="12" class="d-flex align-center justify-center flex-column">
               <v-btn x-large color="primary" dark @click="startTest">
@@ -236,6 +200,7 @@
         vuetify: new Vuetify(),
         data() {
           return {
+            m:null,
             dropActive: false,
             file: null,
             project: null,
@@ -320,6 +285,10 @@
           async startTest(){
             this.testing = true;
             this.tested = false;
+            let svg = document.getElementsByTagName("svg");
+            if(svg.length){
+              svg[0].remove();
+            }
             //--------- loading model -----------//
             let modelJson = JSON.parse( await this.getFileText(this.modelJson));
             let weights = [];
@@ -396,15 +365,16 @@
             let nTruth = confMatrix.sum(1);
             let nClassified = confMatrix.sum(0);
 
-            let precisions = tf.div(tp, confMatrix.sum(0));
-            let recalls = tf.div(tp, confMatrix.sum(1));
+            let precisions = tf.div(tp, confMatrix.sum(1));
+            let recalls = tf.div(tp, confMatrix.sum(0));
             
             let f1s =  tf.mul(2, tf.div(tf.mul(precisions, recalls), tf.add(precisions, recalls)))
-            Matrix({
+            this.m = Matrix({
               container : '#container',
               data      : confMatrix.arraySync(),
               labels    : this.labels
             });
+
             this.matric.nTruth = nTruth.arraySync();
             this.matric.nClassified = nClassified.arraySync();
             this.matric.f1Score = f1s.arraySync();
