@@ -163,7 +163,7 @@
               </v-item-group>
             </v-col> -->
 
-            <v-col v-if="(datasetSource === 0) || (datasetSource === 1 && uploadedFolder.length > 0) " cols="12" class="d-flex align-center justify-center flex-column">
+            <v-col v-if="(datasetSource === 0 && datasetFiles.length) || (datasetSource === 1 && uploadedFolder.length > 0) " cols="12" class="d-flex align-center justify-center flex-column">
               <v-btn x-large color="primary" dark @click="startTest">
                 START TEST
               </v-btn>
@@ -255,7 +255,7 @@
               {title:"Trained", key: "tfjs"},
               {title:"Labels", key: "modelLabel"}
             ],
-            datasetSource : null,
+            datasetSource : 0,
             uploadedFolder : [],
             testing: false,
             tested: false,
