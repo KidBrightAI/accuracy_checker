@@ -127,7 +127,7 @@
               </v-item-group>
             </v-col>
 
-            <v-col v-if="(datasetSource === 0 && datasetFiles.length) || (datasetSource === 1 && uploadedFolder.length > 0) " cols="12" class="d-flex align-center justify-center flex-column">
+            <v-col v-if="project && project['tfjs'] && ((datasetSource === 0 && datasetFiles.length) || (datasetSource === 1 && uploadedFolder.length > 0)) " cols="12" class="d-flex align-center justify-center flex-column">
               <v-btn x-large color="primary" dark @click="startTest">
                 START TEST
               </v-btn>
@@ -163,9 +163,9 @@
                         <td>{{v}}</td>
                         <td>{{matric.nTruth[i]}}</td>
                         <td>{{matric.nClassified[i]}}</td>
-                        <td>{{(matric.precision[i] * 100).toFixed(2)}}%</td>
-                        <td>{{(matric.recall[i] * 100).toFixed(2)}}%</td>
-                        <td>{{matric.f1Score[i].toFixed(3)}}</td>
+                        <td>{{((matric.nTruth[i] === 0 || matric.nClassified[i]===0) ? 0 : matric.precision[i] * 100).toFixed(2)}}%</td>
+                        <td>{{((matric.nTruth[i] === 0 || matric.nClassified[i]===0) ? 0 : matric.recall[i] * 100).toFixed(2)}}%</td>
+                        <td>{{(matric.nTruth[i] === 0 || matric.nClassified[i]===0) ? 0 : matric.f1Score[i].toFixed(3)}}</td>
                       </tr>
                     </tbody>
                   </template>
@@ -188,8 +188,8 @@
                   </template>
                 </v-simple-table>
               </v-col>
-
             </v-col>
+
           </v-row>
         </v-container>
       </v-app>
@@ -252,6 +252,14 @@
           }
         },
         methods: {
+          clearResult(){
+            this.testing = false;
+            this.tested = false;
+            let svg = document.getElementsByTagName("svg");
+            if(svg.length){
+              svg[0].remove();
+            }
+          },
           getImage(entry){
             return new Promise(async (resolve, reject) => {
               let image = new Image();
@@ -283,12 +291,8 @@
             return temp.buffer;
           },
           async startTest(){
+            this.clearResult();
             this.testing = true;
-            this.tested = false;
-            let svg = document.getElementsByTagName("svg");
-            if(svg.length){
-              svg[0].remove();
-            }
             //--------- loading model -----------//
             let modelJson = JSON.parse( await this.getFileText(this.modelJson));
             let weights = [];
@@ -365,16 +369,17 @@
             let nTruth = confMatrix.sum(1);
             let nClassified = confMatrix.sum(0);
 
-            let precisions = tf.div(tp, confMatrix.sum(1));
-            let recalls = tf.div(tp, confMatrix.sum(0));
+            let precisions = tf.div(tp, confMatrix.sum(0));
+            let recalls = tf.div(tp, confMatrix.sum(1));
             
-            let f1s =  tf.mul(2, tf.div(tf.mul(precisions, recalls), tf.add(precisions, recalls)))
+            let f1s =  tf.mul(2, tf.div(tf.mul(precisions, recalls), tf.add(precisions, recalls)));
+
             this.m = Matrix({
               container : '#container',
               data      : confMatrix.arraySync(),
               labels    : this.labels
             });
-
+            //----- check zeros -----//
             this.matric.nTruth = nTruth.arraySync();
             this.matric.nClassified = nClassified.arraySync();
             this.matric.f1Score = f1s.arraySync();
@@ -394,6 +399,7 @@
           },
           async onDrop(e) {
             e.preventDefault();
+            this.clearResult();
             let target = this.findDropableParent(e.target);
             target.style.border = "dashed 4px #999";
             let files = e.dataTransfer.files;
@@ -412,6 +418,7 @@
           },
           async onDatasetDrop(e){
             e.preventDefault();
+            this.clearResult();
             let target = this.findDropableParent(e.target);
             target.style.border = "dashed 4px #999";
             
@@ -460,6 +467,7 @@
               let projectData = await this.getFileText(projectEntry);
               let projectJson = JSON.parse(projectData);
               this.modelJson = entries.find(el=>el.filename.endsWith("model.json"));
+
               this.modelBin = entries.filter(el=>el.filename.endsWith(".bin"));
               this.project = Object.assign({}, projectJson.project.project);
               this.dataset = Object.assign({}, projectJson.dataset.dataset);
